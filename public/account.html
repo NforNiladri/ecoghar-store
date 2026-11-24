@@ -1,0 +1,33 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My account | EcoGhar</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/app.css"></head><body>
+<header class="top"><a href="/"><img src="/logo.jpg" alt="EcoGhar"></a><nav><a href="/">Shop</a><button class="mini" id="out" type="button">Sign out</button></nav></header>
+<main class="wrap">
+<h1 id="hi">My account</h1>
+<div class="two">
+<div class="card"><h2>Place an order</h2>
+<label>Product<select id="item"></select></label>
+<label>Quantity<input id="qty" type="number" min="1" max="20" value="1"></label>
+<label>Delivery address<textarea id="addr" rows="3" maxlength="300" placeholder="House, street, area, PIN code"></textarea></label>
+<label>Note (optional)<input id="note" maxlength="200"></label>
+<p><b id="total"></b></p><p class="err" id="err" role="alert"></p>
+<button class="btn" id="go" type="button">Place order</button>
+<div id="done" class="ok" role="status"></div></div>
+<div class="card"><h2>My orders</h2><div id="mine"></div></div>
+</div></main>
+<script src="/app.js"></script>
+<script>
+var CATL=[];
+function price(){var c=CATL.filter(function(x){return x.key===$("item").value})[0];$("total").textContent=c?"Total: "+money(c.price*(+$("qty").value||1)):""}
+function mine(){api("/orders/mine").then(function(o){var m=$("mine");m.textContent="";if(!o.length)m.appendChild(el("p",{class:"muted",text:"No orders yet."}));o.forEach(function(x){m.appendChild(el("div",{class:"lrow"},[el("div",{},[el("b",{text:x.name+" × "+x.qty}),el("small",{text:fmtDate(x.created)+" · "+x.status})]),el("b",{text:money(x.amount)})]))})})}
+api("/me").then(function(r){if(!r.user){location.href="/login.html?next="+encodeURIComponent("/account.html"+location.search);return}
+ $("hi").textContent="Hello, "+r.user.name.split(" ")[0];
+ if(r.user.role==="admin")$("out").parentNode.insertBefore(el("a",{href:"/admin",class:"mini",text:"Admin dashboard"}),$("out"));
+ api("/catalog").then(function(c){CATL=c;c.forEach(function(x){$("item").appendChild(el("option",{value:x.key,text:x.name+" ("+money(x.price)+")"}))});var b=new URLSearchParams(location.search).get("buy");if(b)$("item").value=b;price()});mine()});
+$("item").addEventListener("change",price);$("qty").addEventListener("input",price);
+$("out").addEventListener("click",function(){api("/logout",{method:"POST"}).then(function(){location.href="/"})});
+$("go").addEventListener("click",function(){$("err").textContent="";$("done").textContent="";
+ api("/orders",{method:"POST",body:{item:$("item").value,qty:$("qty").value,address:$("addr").value,note:$("note").value}}).then(function(r){
+  var o=r.order;$("done").textContent="Order #"+o.id+" placed: "+o.item+" × "+o.qty+", "+money(o.amount)+". ";
+  $("done").appendChild(el("a",{target:"_blank",rel:"noopener",href:"https://wa.me/"+WA+"?text="+encodeURIComponent("Hi EcoGhar! I placed order #"+o.id+" ("+o.item+" × "+o.qty+", "+money(o.amount)+"). Please share the payment details."),text:"Message us on WhatsApp to confirm payment."}));
+  $("addr").value="";$("note").value="";mine()}).catch(function(e){$("err").textContent=e.message;if(e.status===401)location.href="/login.html?next=/account.html"})});
+</script></body></html>

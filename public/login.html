@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in | EcoGhar</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/app.css"></head><body>
+<header class="top"><a href="/"><img src="/logo.jpg" alt="EcoGhar"></a><nav><a href="/">Back to shop</a></nav></header>
+<main class="wrap"><div class="narrow card">
+<div class="tabs"><button type="button" data-m="in" aria-pressed="true">Sign in</button><button type="button" data-m="up" aria-pressed="false">Create account</button></div>
+<form id="f-in" autocomplete="on"><h2>Welcome back</h2>
+<label>Email<input name="email" type="email" autocomplete="email" required></label>
+<label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+<p class="err" id="e-in" role="alert"></p><button class="btn" type="submit">Sign in</button></form>
+<form id="f-up" hidden autocomplete="on"><h2>Create your account</h2>
+<label>Full name<input name="name" autocomplete="name" maxlength="80" required></label>
+<label>Email<input name="email" type="email" autocomplete="email" required></label>
+<label>Phone (10 digits)<input name="phone" inputmode="numeric" autocomplete="tel-national" maxlength="10" required></label>
+<label>Password (at least 8 characters)<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></label>
+<p class="err" id="e-up" role="alert"></p><button class="btn" type="submit">Create account</button></form>
+</div></main>
+<script src="/app.js"></script>
+<script>
+document.querySelectorAll("[data-m]").forEach(function(b){b.addEventListener("click",function(){document.querySelectorAll("[data-m]").forEach(function(x){x.setAttribute("aria-pressed",x===b)});$("f-in").hidden=b.dataset.m!=="in";$("f-up").hidden=b.dataset.m!=="up"})});
+function go(path,form,errId){form.addEventListener("submit",function(e){e.preventDefault();$(errId).textContent="";var d={};new FormData(form).forEach(function(v,k){d[k]=v});
+ api(path,{method:"POST",body:d}).then(function(r){location.href=safeNext()||(r.user.role==="admin"?"/admin":"/account.html")}).catch(function(x){$(errId).textContent=x.message})})}
+go("/login",$("f-in"),"e-in");go("/register",$("f-up"),"e-up");
+</script></body></html>

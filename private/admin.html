@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin | EcoGhar</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/app.css"></head><body>
+<header class="top"><a href="/"><img src="/logo.jpg" alt="EcoGhar"></a><nav><a href="/">View site</a><button class="mini" id="out" type="button">Sign out</button></nav></header>
+<main class="wrap">
+<h1>Admin dashboard</h1><p id="msg" class="muted" role="status"></p>
+<div class="tabs"><button type="button" data-tab="dash" aria-pressed="true">Dashboard</button><button type="button" data-tab="orders" aria-pressed="false">Orders</button><button type="button" data-tab="users" aria-pressed="false">Customers</button><button type="button" data-tab="blog" aria-pressed="false">Blog</button></div>
+
+<section id="t-dash"><div id="kpis" class="kpis"></div>
+<div class="two"><div class="card"><h3>Sales by product</h3><div id="byprod"></div></div>
+<div class="card"><h3>Order status</h3><div id="stat" class="chips"></div><h3 style="margin-top:24px">Refill reminders due</h3><div id="due"></div></div></div></section>
+
+<section id="t-orders" hidden><div class="card"><div class="row"><h3>All orders</h3><div class="row"><a class="btn alt" href="/api/admin/export.csv">Download CSV</a><button class="btn" id="sync" type="button">Sync to Google Sheet</button></div></div>
+<div class="scroll"><table id="otable"></table></div></div></section>
+
+<section id="t-users" hidden><div class="card"><h3>Customers</h3><div class="scroll"><table id="utable"></table></div></div></section>
+
+<section id="t-blog" hidden><div class="two">
+<div class="card"><div class="row"><h3>Posts</h3><button class="btn" id="pnew" type="button">New post</button></div><div id="plist"></div></div>
+<div class="card"><h3 id="phead">New post</h3>
+<label>Title<input id="ptitle" maxlength="120"></label><label>Short summary<input id="pex" maxlength="200"></label>
+<label>Body<textarea id="pbody" rows="12"></textarea></label>
+<label>Status<select id="pstatus"><option value="draft">Draft</option><option value="published">Published</option></select></label>
+<p class="muted">Blank line = new paragraph. Start a line with ## for a heading. Published posts appear on the public Blog page straight away.</p>
+<button class="btn" id="psave" type="button">Save post</button><h3 style="margin-top:24px;font-size:20px">Preview</h3><div id="prev" class="prev"></div></div></div></section>
+</main>
+<script src="/app.js"></script>
+<script>
+var ST=["New","Paid","Shipped","Delivered","Cancelled"],editing=null,posts=[];
+function note(m,bad){var n=$("msg");n.textContent=m||"";n.className=bad?"err":"muted"}
+function fail(e){if(e.status===401||e.status===403)location.href="/login.html?next=/admin";else note(e.message,true)}
+function delBtn(fn){var b=el("button",{class:"mini",type:"button",text:"Delete"}),t;b.addEventListener("click",function(){if(b.dataset.arm){clearTimeout(t);fn()}else{b.dataset.arm="1";b.textContent="Sure?";t=setTimeout(function(){delete b.dataset.arm;b.textContent="Delete"},3000)}});return b}
+var tabs=document.querySelectorAll("[data-tab]");tabs.forEach(function(b){b.addEventListener("click",function(){tabs.forEach(function(x){x.setAttribute("aria-pressed",x===b);$("t-"+x.dataset.tab).hidden=x!==b})})});
+$("out").addEventListener("click",function(){api("/logout",{method:"POST"}).then(function(){location.href="/"})});
+function dash(){api("/admin/summary").then(function(s){
+ var g=$("kpis");g.textContent="";[["Revenue",money(s.revenue)],["Last 30 days",money(s.last30)],["Orders",s.orders],["Units sold",s.units],["Customers",s.customers]].forEach(function(x){g.appendChild(el("div",{class:"kpi"},[el("small",{text:x[0]}),el("b",{text:String(x[1])})]))});
+ var p=$("byprod");p.textContent="";if(!s.byProduct.length)p.appendChild(el("p",{class:"muted",text:"No orders yet."}));var mx=s.byProduct.length?s.byProduct[0].revenue||1:1;
+ s.byProduct.forEach(function(b){var f=el("i");f.style.width=Math.max(4,b.revenue/mx*100)+"%";p.appendChild(el("div",{class:"pr"},[el("span",{text:b.name+" · "+b.units+" sold · "+money(b.revenue)}),el("div",{class:"track"},[f])]))});
+ var c=$("stat");c.textContent="";Object.keys(s.status).forEach(function(k){c.appendChild(el("span",{text:k+": "+s.status[k]}))});
+ var d=$("due");d.textContent="";if(!s.due.length)d.appendChild(el("p",{class:"muted",text:"Nobody is due. Delivered orders appear here after 60 days."}));
+ s.due.forEach(function(o){var m="Hi "+o.name+"! It’s been about two months since your EcoGhar "+o.item+". Time for a refill? Repeat customers get 15% off. Reply and we’ll deliver.";d.appendChild(el("div",{class:"lrow"},[el("div",{},[el("b",{text:o.name}),el("small",{text:o.item+" · "+fmtDate(o.created)})]),el("a",{class:"mini",target:"_blank",rel:"noopener",href:"https://wa.me/91"+o.phone+"?text="+encodeURIComponent(m),text:"Send reminder"})]))})}).catch(fail)}
+function orders(){api("/admin/orders").then(function(o){var t=$("otable");t.textContent="";t.appendChild(el("tr",{},["#","Date","Customer","Phone","Item","Amount","Status","Address",""].map(function(h){return el("th",{text:h})})));
+ o.forEach(function(x){var s=el("select");ST.forEach(function(v){var op=el("option",{value:v,text:v});if(v===x.status)op.selected=true;s.appendChild(op)});s.addEventListener("change",function(){api("/admin/orders/"+x.id,{method:"PATCH",body:{status:s.value}}).then(function(){note("Status updated.");dash()}).catch(fail)});
+  t.appendChild(el("tr",{},[el("td",{text:String(x.id)}),el("td",{text:fmtDate(x.created)}),el("td",{text:x.name}),el("td",{text:x.phone}),el("td",{text:x.itemName+" × "+x.qty}),el("td",{text:money(x.amount)}),el("td",{},[s]),el("td",{text:x.address||""}),el("td",{},[el("a",{class:"mini",target:"_blank",rel:"noopener",href:"https://wa.me/91"+x.phone,text:"WhatsApp"})])]))})}).catch(fail)}
+function users(){api("/admin/users").then(function(u){var t=$("utable");t.textContent="";t.appendChild(el("tr",{},["Name","Email","Phone","Role","Orders","Joined"].map(function(h){return el("th",{text:h})})));u.forEach(function(x){t.appendChild(el("tr",{},[el("td",{text:x.name}),el("td",{text:x.email}),el("td",{text:x.phone||""}),el("td",{text:x.role}),el("td",{text:String(x.orders)}),el("td",{text:fmtDate(x.created)})]))})}).catch(fail)}
+function plist(){api("/admin/posts").then(function(p){posts=p;var l=$("plist");l.textContent="";if(!p.length)l.appendChild(el("p",{class:"muted",text:"No posts yet."}));p.forEach(function(x){l.appendChild(el("div",{class:"lrow"},[el("div",{},[el("b",{text:x.title}),el("small",{text:x.status+" · "+fmtDate(x.updated)})]),el("div",{},[el("button",{class:"mini",type:"button",text:"Edit",onclick:function(){edit(x)}})," ",delBtn(function(){api("/admin/posts/"+x.id,{method:"DELETE"}).then(plist).catch(fail)})])]))})}).catch(fail)}
+function prev(){bodyTo($("prev"),"## "+($("ptitle").value||"Untitled")+"\n\n"+$("pbody").value)}
+function edit(p){editing=p?p.id:null;$("phead").textContent=p?"Edit post":"New post";$("ptitle").value=p?p.title:"";$("pex").value=p?p.excerpt||"":"";$("pbody").value=p?p.body||"":"";$("pstatus").value=p?p.status:"draft";prev()}
+$("pnew").addEventListener("click",function(){edit(null)});["ptitle","pbody"].forEach(function(i){$(i).addEventListener("input",prev)});
+$("psave").addEventListener("click",function(){var b={title:$("ptitle").value,excerpt:$("pex").value,body:$("pbody").value,status:$("pstatus").value};
+ (editing?api("/admin/posts/"+editing,{method:"PUT",body:b}):api("/admin/posts",{method:"POST",body:b})).then(function(){note("Post saved.");if(!editing)edit(null);plist()}).catch(fail)});
+$("sync").addEventListener("click",function(){note("Syncing…");api("/admin/sync",{method:"POST"}).then(function(){note("Google Sheet updated.")}).catch(function(e){note(e.message,true)})});
+dash();orders();users();plist();edit(null);
+</script></body></html>
